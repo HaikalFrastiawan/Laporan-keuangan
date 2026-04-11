@@ -5,25 +5,35 @@ import (
 	"fmt"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql" // Driver sebagai "Kendaraan" resmi
 )
 
-func GetConnection() *sql.DB {
-	// DSN: username:password@tcp(host:port)/database_name
-	// Assuming root with no password on localhost:3306
+// GetConnection membangun pangkalan taksi (Connection Pool) 
+func GetConnection() (*sql.DB, error) {
+	// Komposisi Connection String (Paspor Sakti)
+	// Format: user:password@tcp(host:port)/dbname
 	dsn := "root:@tcp(127.0.0.1:3306)/laporan_keuangan?parseTime=true"
-	
+
+	// Membuka jembatan (Inisialisasi)
+	// sql.Open tidak langsung mengoneksi ke DB, hanya memvalidasi argumen DSN
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
-		panic(err)
+		return nil, fmt.Errorf("gagal inisialisasi driver: %v", err)
 	}
 
-	// Connection pooling configuration
+	// --- MANAJEMEN KONEKSI (Connection Pooling) ---
+
+	// SetMaxIdleConns: Menentukan jumlah taksi yang stand-by di pangkalan
 	db.SetMaxIdleConns(10)
+
+	// SetMaxOpenConns: Membatasi jumlah total taksi agar gedung tidak roboh (beban berlebih)
 	db.SetMaxOpenConns(100)
+
+	// SetConnMaxIdleTime: Jika taksi menganggur terlalu lama, pulangkan ke garasi
 	db.SetConnMaxIdleTime(5 * time.Minute)
+
+	// SetConnMaxLifetime: Masa pensiun taksi (mencegah koneksi 'basi'/stale)
 	db.SetConnMaxLifetime(60 * time.Minute)
 
-	fmt.Println("Database connection pool initialized")
-	return db
+	return db, nil
 }
