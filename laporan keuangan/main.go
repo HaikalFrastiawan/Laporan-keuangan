@@ -1,50 +1,83 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"laporan_keuangan/database"
-	"net/http" 
+	"html/template"
 	"log"
+	"net/http"
+	"strconv"
+	"time"
+
+	"laporan_keuangan/database"
+	"laporan_keuangan/models"
+	"laporan_keuangan/repository"
 )
 
 func main() {
-	// Inisialisasi Database Pool (Pangkalan Taksi)
 	db, err := database.GetConnection()
 	if err != nil {
 		log.Fatalf("Gagal inisialisasi database: %v", err)
 	}
-
-	// Untuk Menutup kembali setelah Database setelah tidak digunakan
 	defer db.Close()
 
-	// Membuat "Resepsionis" (Handler) untuk alamat localhost:8080/
+	repo := repository.NewTransactionRepository(db)
+	tmpl := template.Must(template.ParseFiles("views/index.html"))
 
+	// Halaman Utama: Menampilkan Daftar Transaksi
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// Setiap kali ada yang buka browser, kita "Ping" database-nya
-		err := db.Ping()
-		
-		if err != nil {
-			// Jika gagal, tampilkan pesan error di browser dengan warna merah (HTML)
-			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, "<h1 style='color:red;'>Koneksi Gagal!</h1>")
-			fmt.Fprintf(w, "<p>Error: %v</p>", err)
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
 			return
 		}
 
-		// Jika berhasil, tampilkan pesan sukses
+		ctx := context.Background()
+		transactions, err := repo.GetAllTransactions(ctx)
+		if err != nil {
+			http.Error(w, "Gagal mengambil data dari DB: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		w.Header().Set("Content-Type", "text/html")
-		fmt.Fprintf(w, "<h1 style='color:green;'>Koneksi Berhasil!</h1>")
-		
-		fmt.Fprintf(w, "<p>Selamat datang di database 'laporan_keuangan' aman terkendali.</p>")
-		
-		// Opsional: Tampilkan jumlah user
-		var count int
-		db.QueryRow("SELECT COUNT(*) FROM users").Scan(&count)
-		fmt.Fprintf(w, "<p>Jumlah data di tabel users: <b>%d</b></p>", count)
+		tmpl.Execute(w, transactions)
 	})
 
-	// Menjalankan server di Port 8080
-	fmt.Println("Koneksi Berhasil")
-	fmt.Println("Server berjalan di http://localhost:8080")
+	// Endpoint Form: Menangani aksi Create/Update Transaksi
+	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+			return
+		}
+
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Gagal memproses isian form", http.StatusBadRequest)
+			return
+		}
+
+		description := r.FormValue("description")
+		amountStr := r.FormValue("amount")
+		
+		amount, err := strconv.ParseFloat(amountStr, 64)
+		if err != nil {
+			http.Error(w, "Format jumlah angka tidak valid", http.StatusBadRequest)
+			return
+		}
+
+		tx := models.Transaction{
+			Description: description,
+			Amount:      amount,
+			Date:        time.Now(),
+		}
+
+		ctx := context.Background()
+		if err = repo.Upsert(ctx, tx); err != nil {
+			http.Error(w, "Gagal menyimpan transaksi: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	})
+
+	fmt.Println("🚀 Server menyala port 8080. Buka http://localhost:8080/ di browser Anda.")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
