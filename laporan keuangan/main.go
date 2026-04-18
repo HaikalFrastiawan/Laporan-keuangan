@@ -24,57 +24,22 @@ func main() {
 	repo := repository.NewTransactionRepository(db)
 	tmpl := template.Must(template.ParseFiles("views/index.html"))
 
-	// Halaman Utama: Menampilkan Daftar Transaksi
+	// INI ADALAH BAGIAN READ
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-
-		ctx := context.Background()
-		transactions, err := repo.GetAllTransactions(ctx)
-		if err != nil {
-			http.Error(w, "Gagal mengambil data dari DB: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "text/html")
+		transactions, _ := repo.GetAllTransactions(context.Background())
 		tmpl.Execute(w, transactions)
 	})
 
-	// Endpoint Form: Menangani aksi Create/Update Transaksi
+	// INI ADALAH BAGIAN CREATE
 	http.HandleFunc("/add", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Redirect(w, r, "/", http.StatusSeeOther)
-			return
+		if r.Method == http.MethodPost {
+			amount, _ := strconv.ParseFloat(r.FormValue("amount"), 64)
+			repo.Create(context.Background(), models.Transaction{
+				Description: r.FormValue("description"),
+				Amount:      amount,
+				Date:        time.Now(),
+			})
 		}
-
-		if err := r.ParseForm(); err != nil {
-			http.Error(w, "Gagal memproses isian form", http.StatusBadRequest)
-			return
-		}
-
-		description := r.FormValue("description")
-		amountStr := r.FormValue("amount")
-		
-		amount, err := strconv.ParseFloat(amountStr, 64)
-		if err != nil {
-			http.Error(w, "Format jumlah angka tidak valid", http.StatusBadRequest)
-			return
-		}
-
-		tx := models.Transaction{
-			Description: description,
-			Amount:      amount,
-			Date:        time.Now(),
-		}
-
-		ctx := context.Background()
-		if err = repo.Upsert(ctx, tx); err != nil {
-			http.Error(w, "Gagal menyimpan transaksi: "+err.Error(), http.StatusInternalServerError)
-			return
-		}
-
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 	})
 
