@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/layout/Header";
 import Dashboard from "./pages/Dashboard";
+import Transactions from "./pages/Transactions";
 
 function App() {
   return (
@@ -18,7 +19,7 @@ function App() {
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<Dashboard />} />
               {/* Other pages placeholder */}
-              <Route path="/transactions" element={<div className="text-textColor">Halaman Transaksi</div>} />
+              <Route path="/transactions" element={<Transactions />} />
               <Route path="/categories" element={<div className="text-textColor">Halaman Kategori</div>} />
               <Route path="/reports" element={<div className="text-textColor">Halaman Laporan</div>} />
               <Route path="/profile" element={<div className="text-textColor">Halaman Profil</div>} />
